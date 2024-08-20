@@ -6,13 +6,16 @@ import argparse
 import numpy as np
 import cv2
 import json
+from termcolor import colored
 from utils.general_utils import get_resized_frame
 
 
 def main(args: argparse.Namespace):
     print("***Camera calibration script***")
+    debug = args.debug
+    print(colored("Debug mode is on", "yellow") if debug else "")
     chessboard_size = args.chessboard_size
-    window_size = args.window_size
+    window_scaling_factor = args.window_scaling_factor
     time_skips = args.time_skip
     video_path = os.path.join(args.video_dir, args.video_name)
     output_path = os.path.join(args.output_dir, args.output_name)
@@ -32,13 +35,13 @@ def main(args: argparse.Namespace):
     cap = cv2.VideoCapture(video_path)
     # Sanity checks
     if not cap.isOpened():
-        print("Error opening video file.")
+        print(colored("Error opening video file.", "red"))
         return
-    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     assert height > width, "Video frame is not in portrait mode"
 
-    print("Start analyzing video file...")
+    print(colored("Start analyzing video file...", "green"))
     skip_count = 0
     while True:
         ret, frame = cap.read()
@@ -54,13 +57,19 @@ def main(args: argparse.Namespace):
             corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
             imgpoints.append(corners2)
 
-            # Draw and display the corners for debugging purposes
-            cv2.drawChessboardCorners(frame, chessboard_size, corners2, ret)
+            if debug:
+                # Draw and display the corners for debugging purposes
+                cv2.drawChessboardCorners(frame, chessboard_size, corners2, ret)
 
-        resized_frame = get_resized_frame(frame, window_size, width, height)
+        resized_frame = get_resized_frame(
+            frame,
+            width=width,
+            height=height,
+            scaling_factor=window_scaling_factor,
+        )
         cv2.imshow("Frame", resized_frame)
         if cv2.waitKey(100) & 0xFF == ord("q"):
-            print("User interrupted the process")
+            print(colored("User interrupted the process", "red"))
             cap.release()
             cv2.destroyAllWindows()
             return
@@ -71,17 +80,17 @@ def main(args: argparse.Namespace):
 
     cap.release()
     cv2.destroyAllWindows()
-    print("Finish analyzing video file")
+    print(colored("Finish analyzing video file", "green"))
 
-    print("Start calibrating camera...")
+    print(colored("Start calibrating camera...", "green"))
     ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(
-        objpoints, imgpoints, gray.shape[::-1], None, None
+        objpoints, imgpoints, gray.shape[::-1], None, None  # type: ignore
     )
 
     print("Camera matrix:")
-    print(mtx)
+    print(colored(mtx, "dark_grey"))
     print("Distortion coefficients:")
-    print(dist)
+    print(colored(dist, "dark_grey"))
 
     mean_error = 0
     for i in range(len(objpoints)):
@@ -99,12 +108,18 @@ def main(args: argparse.Namespace):
     }
     with open(output_path, "w") as f:
         json.dump(camera_params, f)
-    print(f"Camera parameters saved to {output_path}")
+    print(colored(f"Camera parameters saved to {output_path}", "green"))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="A script that perform camera calibration from a provided video"
+    )
+    parser.add_argument(
+        "--debug",
+        type=bool,
+        default=True,
+        help="Debug mode",
     )
     parser.add_argument(
         "--chessboard_size",
@@ -114,16 +129,15 @@ if __name__ == "__main__":
         help="Size of the chessboard",
     )
     parser.add_argument(
-        "--window_size",
-        type=int,
-        nargs=2,
-        default=(500, 700),
-        help="Size of the window to display the video (width, height)",
+        "--window_scaling_factor",
+        type=float,
+        default=0.4,
+        help="Scaling factor for the window size",
     )
     parser.add_argument(
         "--time_skip",
         type=int,
-        default=500,
+        default=2000,
         help="Time interval to skip in milliseconds",
     )
     parser.add_argument(
@@ -152,6 +166,5 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     args.chessboard_size = tuple(args.chessboard_size)
-    args.window_size = tuple(args.window_size)
     args.time_skip = float(args.time_skip)
     main(args)
