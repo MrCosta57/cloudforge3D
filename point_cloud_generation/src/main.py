@@ -22,16 +22,15 @@ def main(args: argparse.Namespace):
     window_scaling_factor = args.window_scaling_factor
     camera_params_path = os.path.join(args.camera_params_dir, args.camera_params_name)
     video_path = os.path.join(args.video_dir, args.video_name)
-    output_path = os.path.join(args.output_dir, args.output_name)
 
     cap = cv2.VideoCapture(video_path)
     # Sanity checks
     if not cap.isOpened():
         print(colored("Error opening video file.", "red"))
         return
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    assert height > width, "Video frame is not in portrait mode"
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    assert frame_height > frame_width, "Video frame is not in portrait mode"
     camera_matrix = None
     dist_coeffs = None
     with open(camera_params_path, "r") as f:
@@ -54,49 +53,79 @@ def main(args: argparse.Namespace):
         original_frame = get_undistorted_frame(
             frame=original_frame, camera_matrix=camera_matrix, dist_coeffs=dist_coeffs
         )
-        palette_frame = original_frame.copy()
+        proj_frame = original_frame.copy()
 
-        gray_frame = find_black_objects(original_frame)
-        gray_contours, _ = cv2.findContours(
-            gray_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
+        black_obj_frame = find_black_objects(frame=original_frame)
+        black_contours, _ = cv2.findContours(
+            black_obj_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
         )
-        rectangle = fit_marker_rectangle(gray_contours)
-        compute_back_marker_extrinsic(
-            rectangle,
-            camera_matrix,
-            dist_coeffs,
-            back_marker_size,
-            palette_frame,
-        )
+        if debug:
+            black_obj_frame = cv2.cvtColor(black_obj_frame, cv2.COLOR_GRAY2BGR)
+            cv2.drawContours(black_obj_frame, black_contours, -1, (0, 0, 255), 1)
 
-        dot_centers = find_plate_marker_cand_dot_centers(gray_contours, width, height)
-        ellipse = fit_marker_ellipse(dot_centers)
-        compute_plate_marker_extrinsic(
-            ellipse,
-            dot_centers,
-            camera_matrix,
-            dist_coeffs,
-            plate_marker_info,
-            original_frame,
-            palette_frame,
+        rectangle = fit_marker_rectangle(
+            contours=black_contours, debug=debug, palette_frame=black_obj_frame
+        )
+        dot_centers = find_plate_marker_cand_dot_centers(
+            contours=black_contours,
+            frame_w=frame_width,
+            frame_h=frame_height,
+            debug=debug,
+            palette_frame=black_obj_frame,
+        )
+        ellipse = fit_marker_ellipse(
+            points=dot_centers, debug=debug, palette_frame=black_obj_frame
         )
 
-        original_frame_resized = get_resized_frame(
-            original_frame,
-            width=width,
-            height=height,
-            scaling_factor=window_scaling_factor,
-        )
-        palette_frame_resized = get_resized_frame(
-            palette_frame,
-            width=width,
-            height=height,
-            scaling_factor=window_scaling_factor,
+        r_back, t_back = compute_back_marker_extrinsic(
+            rectangle=rectangle,
+            camera_matrix=camera_matrix,
+            dist_coeffs=dist_coeffs,
+            real_marker_size=back_marker_size,
+            debug=debug,
+            palette_frame=proj_frame,
         )
 
-        cv2.imshow("Original frame", original_frame_resized)
-        cv2.imshow("Palette frame", palette_frame_resized)
-        if cv2.waitKey(0) & 0xFF == ord("q"):
+        r_plate, t_plate = compute_plate_marker_extrinsic(
+            ellipse=ellipse,
+            dot_centers=dot_centers,
+            camera_matrix=camera_matrix,
+            dist_coeffs=dist_coeffs,
+            marker_info=plate_marker_info,
+            frame=original_frame,
+            debug=debug,
+            palette_frame=proj_frame,
+        )
+
+        if debug:
+            black_obj_frame_resized = get_resized_frame(
+                black_obj_frame,
+                width=frame_width,
+                height=frame_height,
+                scaling_factor=window_scaling_factor,
+            )
+            proj_frame_resized = get_resized_frame(
+                proj_frame,
+                width=frame_width,
+                height=frame_height,
+                scaling_factor=window_scaling_factor,
+            )
+            cv2.imshow("Contour-fitted frame", black_obj_frame_resized)
+            cv2.imshow("Projection frame", proj_frame_resized)
+        else:
+            original_frame_resized = get_resized_frame(
+                original_frame,
+                width=frame_width,
+                height=frame_height,
+                scaling_factor=window_scaling_factor,
+            )
+            cv2.imshow("Original frame", original_frame_resized)
+
+        key = cv2.waitKey(500)
+        if key == 32:  # space bar key
+            print(colored("Paused. Press any key to continue", "yellow"))
+            cv2.waitKey(0)
+        elif key & 0xFF == ord("q"):  # q key
             print(colored("User interrupted the process", "red"))
             cap.release()
             cv2.destroyAllWindows()
@@ -131,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--video_name",
         type=str,
-        default="cube.mov",
+        default="ball.mov",
         help="Name of the video file",
     )
     parser.add_argument(
@@ -139,12 +168,6 @@ if __name__ == "__main__":
         type=str,
         default="point_cloud_generation/output",
         help="Directory to save the output file",
-    )
-    parser.add_argument(
-        "--output_name",
-        type=str,
-        default="camera_params.json",
-        help="Name of the output file",
     )
     parser.add_argument(
         "--camera_params_dir",
@@ -161,9 +184,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--plate_marker_info",
         type=str,
-        nargs=5,
-        default=("YWMBMMCCCYWBMYWBYWBC", 20, 5, 4, 7.5),
-        help="Information about the object marker (seq_string, seq_len, seq_vocabulary_len, min_pattern_len, marker_radius_cm)",
+        nargs=3,
+        default=("YWMBMMCCCYWBMYWBYWBC", 4, 7.5),
+        help="Information about the object marker (seq_string, min_pattern_len, marker_radius_cm)",
     )
     parser.add_argument(
         "--back_marker_size",
@@ -178,21 +201,18 @@ if __name__ == "__main__":
     args.plate_marker_info = (
         str(args.plate_marker_info[0]),
         int(args.plate_marker_info[1]),
-        int(args.plate_marker_info[2]),
-        int(args.plate_marker_info[3]),
-        float(args.plate_marker_info[4]),
+        float(args.plate_marker_info[2]),
     )
     args.back_marker_size = tuple(args.back_marker_size)
 
     assert (
-        len(args.plate_marker_info[0]) == args.plate_marker_info[1]
-    ), "Invalid sequence length"
-    assert (
-        len(set(args.plate_marker_info[0])) == args.plate_marker_info[2]
-    ), "Invalid sequence vocabulary length"
-    assert args.plate_marker_info[3] > 0, "Invalid plate marker radius"
+        len(args.plate_marker_info[0]) > 0
+        and args.plate_marker_info[1] > 0
+        and args.plate_marker_info[2] > 0
+    )
     assert (
         args.back_marker_size[0] > 0 and args.back_marker_size[1] > 0
     ), "Invalid back marker size"
 
+    seed_everything()
     main(args)

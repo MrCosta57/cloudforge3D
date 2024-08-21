@@ -1,6 +1,13 @@
 from typing import Tuple
 import numpy as np
+import random
 import cv2
+
+
+def seed_everything(seed: int = 123):
+    random.seed(seed)
+    np.random.seed(seed)
+    cv2.setRNGSeed(seed)
 
 
 def get_resized_frame(

@@ -12,9 +12,12 @@ from utils.scanner_utils import (
     get_marker_seq_start,
     get_world_points_from_cm,
 )
+from termcolor import colored
 
 
-def find_plate_marker_cand_dot_centers(contours, frame_w: int, frame_h: int):
+def find_plate_marker_cand_dot_centers(
+    contours, frame_w: int, frame_h: int, debug=False, palette_frame=None
+):
     """
     Find the candidate centers of the plate marker dots. There might be some noise points
     :param contours: List of contours to search for the dots
@@ -30,8 +33,8 @@ def find_plate_marker_cand_dot_centers(contours, frame_w: int, frame_h: int):
 
         ellipse = cv2.fitEllipse(contour)
         center_x, center_y = round(ellipse[0][0]), round(ellipse[0][1])
-        axis_1, axis_2 = ellipse[1]
-        angle = ellipse[2]
+        axis_1, axis_2 = round(ellipse[1][0]), round(ellipse[1][1])
+        angle = round(ellipse[2])
 
         # Marker dots are:
         # - In the lower half of the frame
@@ -40,18 +43,35 @@ def find_plate_marker_cand_dot_centers(contours, frame_w: int, frame_h: int):
         if (
             10 < center_x < frame_w - 10
             and frame_h / 2 < center_y < frame_h
-            and 20 < axis_1 < 60
-            and 20 < axis_2 < 60
+            and 20 < axis_1 < 50
+            and 20 < axis_2 < 50
         ):
             # Check if the center is not too close to any other center
             predicate = any([math.dist(c, [center_x, center_y]) < 30 for c in centers])
             if not predicate:
                 centers.append((center_x, center_y))
+                if debug and palette_frame is not None:
+                    cv2.ellipse(
+                        palette_frame,
+                        ellipse,
+                        (34, 139, 34),
+                        2,
+                    )
+                    cv2.drawMarker(
+                        palette_frame,
+                        (center_x, center_y),
+                        (34, 139, 54),
+                        markerSize=15,
+                        markerType=cv2.MARKER_TILTED_CROSS,
+                        thickness=2,
+                    )
 
     return centers
 
 
-def fit_marker_ellipse(points, num_round: int = 50, dist_thresh: int = 5):
+def fit_marker_ellipse(
+    points, num_round: int = 50, dist_thresh: int = 5, debug=False, palette_frame=None
+):
     """
     Fit an ellipse to the given points using RANSAC.
     :param points: List of points to fit the ellipse
@@ -99,15 +119,38 @@ def fit_marker_ellipse(points, num_round: int = 50, dist_thresh: int = 5):
 
     # Extract the candidate with max votes
     best_ellipse = max(candidates, key=lambda item: item[1])[0]
+    if debug and palette_frame is not None:
+        cv2.ellipse(
+            palette_frame,
+            best_ellipse,
+            (50, 205, 50),
+            3,
+        )
+        cv2.drawMarker(
+            palette_frame,
+            (round(best_ellipse[0][0]), round(best_ellipse[0][1])),
+            (50, 205, 70),
+            markerSize=15,
+            markerType=cv2.MARKER_TILTED_CROSS,
+            thickness=3,
+        )
     return best_ellipse
 
 
 def compute_plate_marker_extrinsic(
-    ellipse, dot_centers, camera_matrix, dist_coeffs, marker_info, frame, palette_frame
+    ellipse,
+    dot_centers,
+    camera_matrix,
+    dist_coeffs,
+    marker_info,
+    frame,
+    debug=False,
+    palette_frame=None,
 ):
-    seq_string, seq_len, seq_vocabulary_len, min_pattern_len, marker_radius_cm = (
-        marker_info
-    )
+    seq_string, min_pattern_len, marker_radius_cm = marker_info
+    seq_len = len(seq_string)
+    # Duplicate the sequence to handle the case when the pattern is split between the last and the first element
+    seq_string = seq_string * 2
 
     ellipse_center = (round(ellipse[0][0]), round(ellipse[0][1]))
     ellipse_half_axes = (round(ellipse[1][0] / 2), round(ellipse[1][1] / 2))
@@ -128,17 +171,25 @@ def compute_plate_marker_extrinsic(
     dot_centers = [
         p
         for p in dot_centers
-        if abs(cv2.pointPolygonTest(poly, p, measureDist=True)) < 5
+        if abs(cv2.pointPolygonTest(poly, p, measureDist=True)) < 10
     ]
     if len(dot_centers) < 10:
         raise Exception("Too few dot centers for plate marker detection")
+    if debug:
+        if len(dot_centers) != seq_len:
+            print(
+                colored(
+                    f"Dot centers for plate extrinsic computation are {len(dot_centers)}",
+                    "light_yellow",
+                )
+            )
 
     # Create a list containing the point angle in polar coordinates, the point color and the original position
     # If color is not found, value is None
     dot_tuple = [
         (
             convert_to_polar(ellipse_center, p)[1],
-            get_point_color(frame, p, seq_string),
+            get_point_color(frame, p),
             p,
         )
         for p in dot_centers
@@ -163,18 +214,13 @@ def compute_plate_marker_extrinsic(
             pattern += curr_t[1]
         patterns.append(pattern)
 
-    # Find the indexes of the dots
+    # Find the indexes of the dots, if the pattern is not found, the index is -1
     dot_indexes = [get_marker_seq_start(seq_string, pattern) for pattern in patterns]
-    # Some dot ids might be missing (value -1), find their indexes using the other dots
-    for i in range(dot_tuple_len):
-        if dot_indexes[i] >= 0:
-            # If the dot id is valid, update the indexes next n dots by overwriting the value
-            # This should fill the gaps in the dot indexes
-            for j in range(1, min_pattern_len + 1):
-                dot_indexes[(i + j) % dot_tuple_len] = (dot_indexes[i] + j) % seq_len
 
     marker_angle = 360 // seq_len
     marker_radius_rw = get_world_points_from_cm(marker_radius_cm)
+    # Filter out the dots with invalid indexes (solvePnP requires at least 4 points)
+    # Take just dots with sure id
     obj_points = np.array(
         [
             [
@@ -183,65 +229,62 @@ def compute_plate_marker_extrinsic(
                 0,
             ]
             for idx in dot_indexes
+            if idx != -1
         ],
         dtype=np.float32,
     )
     img_points = np.array(
-        [dot_tuple[i][2] for i in range(dot_tuple_len)], dtype=np.float32
+        [t[2] for t, idx in zip(dot_tuple, dot_indexes) if idx != -1], dtype=np.float32
     )
 
     _, r, t = cv2.solvePnP(
         obj_points, img_points, camera_matrix, dist_coeffs, flags=cv2.SOLVEPNP_IPPE
     )
 
-    proj_dot_centers = cv2.projectPoints(
-        obj_points, r, t, camera_matrix, dist_coeffs, img_points
-    )[0]
-    proj_dot_centers = np.round(proj_dot_centers).astype(np.int32)
-
-    cv2.drawMarker(
-        palette_frame,
-        ellipse_center,
-        (0, 255, 0),
-        markerType=cv2.MARKER_CROSS,
-        markerSize=15,
-        thickness=2,
-    )
-
-    for i in range(dot_tuple_len):
-        cv2.drawMarker(
-            palette_frame,
-            (proj_dot_centers[i][0][0], proj_dot_centers[i][0][1]),
-            (0, 255, 0),
-            markerType=cv2.MARKER_CROSS,
-            markerSize=15,
-            thickness=2,
-        )
-        color_dict = {
+    if debug and palette_frame is not None:
+        proj_dot_centers = cv2.projectPoints(
+            obj_points, r, t, camera_matrix, dist_coeffs, img_points
+        )[0]
+        proj_dot_centers = np.round(proj_dot_centers).astype(np.int32)
+        for p in proj_dot_centers:
+            cv2.drawMarker(
+                palette_frame,
+                (p[0][0], p[0][1]),
+                (0, 255, 0),
+                markerType=cv2.MARKER_CROSS,
+                markerSize=15,
+                thickness=2,
+            )
+        debug_color_dict = {
             "B": (0, 0, 0),
             "W": (255, 255, 255),
             "Y": (0, 255, 255),
             "M": (255, 0, 255),
             "C": (255, 255, 0),
         }
-        # Red color for the dots with unknown color
-        tmp_color = (
-            (0, 0, 255) if dot_tuple[i][1] is None else color_dict[dot_tuple[i][1]]  # type: ignore
-        )
-        cv2.putText(
+        for i in range(dot_tuple_len):
+            # Red color for the dots with unknown color
+            tmp_color = (
+                (0, 0, 255)
+                if dot_tuple[i][1] is None
+                else debug_color_dict[dot_tuple[i][1]]  # type: ignore
+            )
+            cv2.putText(
+                palette_frame,
+                str(dot_indexes[i]),
+                (dot_tuple[i][2][0] - 10, dot_tuple[i][2][1] - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                tmp_color,
+                2,
+            )
+        """ # Draw ploy
+        cv2.polylines(
             palette_frame,
-            str(dot_indexes[i]),
-            (dot_tuple[i][2][0] - 10, dot_tuple[i][2][1] - 10),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            tmp_color,
-            2,
-        )
-    cv2.ellipse(
-        palette_frame,
-        ellipse,
-        (255, 0, 0),
-        2,
-    )
+            [poly],
+            isClosed=True,
+            color=(0, 255, 0),
+            thickness=2,
+        ) """
 
     return r, t

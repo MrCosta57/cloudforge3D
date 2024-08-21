@@ -8,7 +8,9 @@ import numpy as np
 from utils.scanner_utils import get_world_points_from_cm
 
 
-def fit_marker_rectangle(contours, min_area: int = 100000):
+def fit_marker_rectangle(
+    contours, min_area: int = 100000, debug=False, palette_frame=None
+):
     """
     Fit a rectangle to the given contours.
     :param contours: List of contours to search for the rectangle
@@ -31,6 +33,25 @@ def fit_marker_rectangle(contours, min_area: int = 100000):
 
     rectangles.sort(key=cv2.contourArea)
     inner_rectangle = rectangles[0]
+
+    if debug and palette_frame is not None:
+        for i in range(4):
+            cv2.line(
+                palette_frame,
+                tuple(inner_rectangle[i][0]),
+                tuple(inner_rectangle[(i + 1) % 4][0]),
+                (50, 205, 50),
+                3,
+            )
+            cv2.drawMarker(
+                palette_frame,
+                tuple(inner_rectangle[i][0]),
+                (50, 205, 70),
+                markerSize=15,
+                markerType=cv2.MARKER_TILTED_CROSS,
+                thickness=3,
+            )
+
     return inner_rectangle
 
 
@@ -39,7 +60,8 @@ def compute_back_marker_extrinsic(
     camera_matrix: np.ndarray,
     dist_coeffs: np.ndarray,
     real_marker_size: Tuple[float, float],
-    palette_frame,
+    debug=False,
+    palette_frame=None,
 ):
     a, b, c, d = rectangle
     marker_size = (
@@ -69,24 +91,19 @@ def compute_back_marker_extrinsic(
         obj_points, img_points, camera_matrix, dist_coeffs, flags=cv2.SOLVEPNP_IPPE
     )
 
-    proj_vertexes = cv2.projectPoints(
-        obj_points, r, t, camera_matrix, dist_coeffs, img_points
-    )[0]
-    proj_vertexes = np.round(proj_vertexes).astype(np.int32)
-
-    for p in proj_vertexes:
-        print(p)
-        cv2.drawMarker(
-            palette_frame,
-            (p[0][0], p[0][1]),
-            (0, 255, 0),
-            markerSize=15,
-            markerType=cv2.MARKER_CROSS,
-            thickness=2,
-        )
-    cv2.line(palette_frame, a[0], b[0], (255, 0, 0), 2)
-    cv2.line(palette_frame, b[0], c[0], (255, 0, 0), 2)
-    cv2.line(palette_frame, c[0], d[0], (255, 0, 0), 2)
-    cv2.line(palette_frame, d[0], a[0], (255, 0, 0), 2)
+    if debug and palette_frame is not None:
+        proj_vertexes = cv2.projectPoints(
+            obj_points, r, t, camera_matrix, dist_coeffs, img_points
+        )[0]
+        proj_vertexes = np.round(proj_vertexes).astype(np.int32)
+        for p in proj_vertexes:
+            cv2.drawMarker(
+                palette_frame,
+                (p[0][0], p[0][1]),
+                (0, 255, 0),
+                markerSize=15,
+                markerType=cv2.MARKER_TILTED_CROSS,
+                thickness=3,
+            )
 
     return r, t

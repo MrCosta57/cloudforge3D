@@ -7,7 +7,7 @@ import numpy as np
 import cv2
 import json
 from termcolor import colored
-from utils.general_utils import get_resized_frame
+from utils.general_utils import get_resized_frame, seed_everything
 
 
 def main(args: argparse.Namespace):
@@ -167,4 +167,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.chessboard_size = tuple(args.chessboard_size)
     args.time_skip = float(args.time_skip)
+
+    seed_everything()
     main(args)
