@@ -236,6 +236,8 @@ def compute_plate_marker_extrinsic(
     img_points = np.array(
         [t[2] for t, idx in zip(dot_tuple, dot_indexes) if idx != -1], dtype=np.float32
     )
+    if len(obj_points) < 4 or len(img_points) < 4:
+        raise Exception("Too few points for plate marker pose estimation")
 
     _, r, t = cv2.solvePnP(
         obj_points, img_points, camera_matrix, dist_coeffs, flags=cv2.SOLVEPNP_IPPE
@@ -278,13 +280,80 @@ def compute_plate_marker_extrinsic(
                 tmp_color,
                 2,
             )
-        """ # Draw ploy
-        cv2.polylines(
+        proj_axis_pts = cv2.projectPoints(
+            np.array(
+                [
+                    [0, 0, 0],
+                    [marker_radius_rw, 0, 0],
+                    [0, marker_radius_rw, 0],
+                    [0, 0, marker_radius_rw],
+                ],
+                dtype=np.float32,
+            ),
+            r,
+            t,
+            camera_matrix,
+            dist_coeffs,
+            img_points,
+        )[0]
+        proj_axis_pts = np.round(proj_axis_pts).astype(np.int32)
+        cv2.arrowedLine(
             palette_frame,
-            [poly],
-            isClosed=True,
-            color=(0, 255, 0),
+            tuple(proj_axis_pts[0][0]),
+            tuple(proj_axis_pts[1][0]),
+            (255, 0, 0),
+            3,
+            tipLength=0.05,
+        )
+        cv2.putText(
+            palette_frame,
+            "X",
+            tuple(proj_axis_pts[1][0] + 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 0, 0),
+            2,
+        )
+        cv2.arrowedLine(
+            palette_frame,
+            tuple(proj_axis_pts[0][0]),
+            tuple(proj_axis_pts[2][0]),
+            (0, 255, 0),
+            3,
+            tipLength=0.05,
+        )
+        cv2.putText(
+            palette_frame,
+            "Y",
+            tuple(proj_axis_pts[2][0] + 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 0),
+            2,
+        )
+        cv2.arrowedLine(
+            palette_frame,
+            tuple(proj_axis_pts[0][0]),
+            tuple(proj_axis_pts[3][0]),
+            (0, 0, 255),
+            3,
+            tipLength=0.05,
+        )
+        cv2.putText(
+            palette_frame,
+            "Z",
+            tuple(proj_axis_pts[3][0] + 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 0, 255),
+            2,
+        )
+        cv2.drawMarker(
+            palette_frame,
+            tuple(proj_axis_pts[0][0]),
+            (255, 255, 255),
+            markerSize=15,
+            markerType=cv2.MARKER_STAR,
             thickness=2,
-        ) """
-
+        )
     return r, t

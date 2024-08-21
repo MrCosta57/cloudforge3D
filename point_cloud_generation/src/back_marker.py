@@ -64,6 +64,7 @@ def compute_back_marker_extrinsic(
     palette_frame=None,
 ):
     a, b, c, d = rectangle
+    # (width, height)
     marker_size = (
         get_world_points_from_cm(real_marker_size[0]),
         get_world_points_from_cm(real_marker_size[1]),
@@ -93,17 +94,74 @@ def compute_back_marker_extrinsic(
 
     if debug and palette_frame is not None:
         proj_vertexes = cv2.projectPoints(
-            obj_points, r, t, camera_matrix, dist_coeffs, img_points
+            np.concatenate([obj_points, [[0, 0, 100]]], axis=0),
+            r,
+            t,
+            camera_matrix,
+            dist_coeffs,
+            img_points,
         )[0]
         proj_vertexes = np.round(proj_vertexes).astype(np.int32)
-        for p in proj_vertexes:
+        for i in range(len(proj_vertexes) - 1):
             cv2.drawMarker(
                 palette_frame,
-                (p[0][0], p[0][1]),
-                (0, 255, 0),
+                tuple(proj_vertexes[i][0]),
+                (255, 255, 255) if i == 0 else (0, 255, 0),
                 markerSize=15,
-                markerType=cv2.MARKER_TILTED_CROSS,
+                markerType=cv2.MARKER_STAR if i == 0 else cv2.MARKER_TILTED_CROSS,
                 thickness=3,
             )
+        # Axis lines
+        cv2.arrowedLine(
+            palette_frame,
+            tuple(proj_vertexes[0][0]),
+            tuple(proj_vertexes[1][0]),
+            (255, 0, 0),
+            3,
+            tipLength=0.05,
+        )
+        cv2.putText(
+            palette_frame,
+            "X",
+            tuple(proj_vertexes[1][0] + 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 0, 0),
+            2,
+        )
+        cv2.arrowedLine(
+            palette_frame,
+            tuple(proj_vertexes[0][0]),
+            tuple(proj_vertexes[3][0]),
+            (0, 255, 0),
+            3,
+            tipLength=0.05,
+        )
+        cv2.putText(
+            palette_frame,
+            "Y",
+            tuple(proj_vertexes[3][0] + 15),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 0),
+            2,
+        )
+        cv2.arrowedLine(
+            palette_frame,
+            tuple(proj_vertexes[0][0]),
+            tuple(proj_vertexes[4][0]),
+            (0, 0, 255),
+            3,
+            tipLength=0.05,
+        )
+        cv2.putText(
+            palette_frame,
+            "Z",
+            tuple(proj_vertexes[4][0]),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 0, 255),
+            2,
+        )
 
     return r, t

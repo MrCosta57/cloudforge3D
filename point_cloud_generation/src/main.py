@@ -56,6 +56,7 @@ def main(args: argparse.Namespace):
         proj_frame = original_frame.copy()
 
         black_obj_frame = find_black_objects(frame=original_frame)
+        laser_frame = find_laser_trace(frame=original_frame)
         black_contours, _ = cv2.findContours(
             black_obj_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
         )
@@ -104,6 +105,12 @@ def main(args: argparse.Namespace):
                 height=frame_height,
                 scaling_factor=window_scaling_factor,
             )
+            laser_frame_resized = get_resized_frame(
+                laser_frame,
+                width=frame_width,
+                height=frame_height,
+                scaling_factor=window_scaling_factor,
+            )
             proj_frame_resized = get_resized_frame(
                 proj_frame,
                 width=frame_width,
@@ -111,6 +118,7 @@ def main(args: argparse.Namespace):
                 scaling_factor=window_scaling_factor,
             )
             cv2.imshow("Contour-fitted frame", black_obj_frame_resized)
+            cv2.imshow("Laser frame", laser_frame_resized)
             cv2.imshow("Projection frame", proj_frame_resized)
         else:
             original_frame_resized = get_resized_frame(
