@@ -7,11 +7,11 @@ import cv2
 import random
 import numpy as np
 from utils.scanner_utils import (
-    convert_to_polar,
     get_point_color,
     get_marker_seq_start,
     get_world_points_from_cm,
 )
+from utils.geometric_utils import convert_to_polar
 from termcolor import colored
 
 

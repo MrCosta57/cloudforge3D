@@ -5,10 +5,12 @@ sys.path.append(ROOT_DIR)
 import argparse, json
 import numpy as np
 import cv2
+from datetime import datetime
 from termcolor import colored
 from utils.general_utils import *
 from laser import *
 from utils.scanner_utils import *
+from utils.geometric_utils import *
 from back_marker import *
 from plate_marker import *
 
@@ -22,6 +24,11 @@ def main(args: argparse.Namespace):
     window_scaling_factor = args.window_scaling_factor
     camera_params_path = os.path.join(args.camera_params_dir, args.camera_params_name)
     video_path = os.path.join(args.video_dir, args.video_name)
+    # Date string for the output file in compact format
+    date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = os.path.join(
+        args.output_dir, args.video_name + "_" + date_str + ".ply"
+    )
 
     cap = cv2.VideoCapture(video_path)
     # Sanity checks
@@ -46,6 +53,7 @@ def main(args: argparse.Namespace):
         )
         print(colored(f"Calibration error: {error:.4f}", "dark_grey"))
 
+    focal_length = camera_matrix[0, 0]
     while True:
         ret, original_frame = cap.read()
         if not ret:
@@ -54,9 +62,9 @@ def main(args: argparse.Namespace):
             frame=original_frame, camera_matrix=camera_matrix, dist_coeffs=dist_coeffs
         )
         proj_frame = original_frame.copy()
-
+        laser_frame = original_frame.copy()
         black_obj_frame = find_black_objects(frame=original_frame)
-        laser_frame = find_laser_trace(frame=original_frame)
+
         black_contours, _ = cv2.findContours(
             black_obj_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
         )
@@ -86,6 +94,8 @@ def main(args: argparse.Namespace):
             debug=debug,
             palette_frame=proj_frame,
         )
+        # Back marker reference system --> camera reference system
+        back2camera_mtx = marker2camera(r_back, t_back)
 
         r_plate, t_plate = compute_plate_marker_extrinsic(
             ellipse=ellipse,
@@ -97,6 +107,104 @@ def main(args: argparse.Namespace):
             debug=debug,
             palette_frame=proj_frame,
         )
+        # Plate marker reference system --> camera reference system
+        plate2camera_mtx = marker2camera(r_plate, t_plate)
+        # Camera reference system --> plate marker reference system
+        camera2plate_mtx = camera2marker(r_plate, t_plate)
+
+        first_point_back, second_point_back = find_two_laser_point_backmarker(
+            rectangle=rectangle,
+            frame=original_frame,
+        )
+        third_point_plate = find_laser_point_platemarker(
+            ellipse=ellipse,
+            frame=original_frame,
+        )
+        all_laser_points_plate = find_all_laser_points_obj(
+            ellipse=ellipse,
+            frame=original_frame,
+        )
+        if debug:
+            cv2.drawMarker(
+                laser_frame,
+                tuple(first_point_back),
+                (255, 0, 0),
+                markerSize=25,
+                markerType=cv2.MARKER_CROSS,
+                thickness=3,
+            )
+            cv2.drawMarker(
+                laser_frame,
+                tuple(second_point_back),
+                (255, 0, 0),
+                markerSize=25,
+                markerType=cv2.MARKER_CROSS,
+                thickness=3,
+            )
+            cv2.drawMarker(
+                laser_frame,
+                tuple(third_point_plate),
+                (255, 0, 0),
+                markerSize=25,
+                markerType=cv2.MARKER_CROSS,
+                thickness=3,
+            )
+            cv2.polylines(
+                laser_frame,
+                [all_laser_points_plate],
+                isClosed=False,
+                color=(0, 255, 255),
+                thickness=2,
+            )
+
+        """
+        When we work with different cameras with different intrinsics it is handy to have 
+        a representation which is independent of those intrinsics.
+        We have used K to get from the camera frame into the image frame. 
+        Then we have removed the depth by removing λ. As a result we got the 2D coordinated u and v. 
+        Now we go back to the camera frame by inverting the intrinsic dependent transformation K with K-1. 
+        As a result we are in the camera frame but with normalized depth ZC=1. """
+
+        inv_camera_matrix = np.linalg.inv(camera_matrix)
+        first_point_back_cam = inv_camera_matrix @ np.array(first_point_back + [1])
+        second_point_back_cam = inv_camera_matrix @ np.array(second_point_back + [1])
+        third_point_plate_cam = inv_camera_matrix @ np.array(third_point_plate + [1])
+
+        plane_back_cam = plane2camera([0, 0, 0], [0, 0, 1], r_back, t_back)
+        plane_plate_cam = plane2camera([0, 0, 0], [0, 0, 1], r_plate, t_plate)
+
+        first_point_laser = find_plane_line_intersection(
+            plane_back_cam, [0, 0, 0], first_point_back_cam
+        )
+        second_point_laser = find_plane_line_intersection(
+            plane_back_cam, [0, 0, 0], second_point_back_cam
+        )
+        third_point_laser = find_plane_line_intersection(
+            plane_plate_cam, [0, 0, 0], third_point_plate_cam
+        )
+
+        laser_plane = find_plane_equation(
+            second_point_laser, first_point_laser, third_point_laser
+        )
+
+        for p in all_laser_points_plate:
+            p_cam = inv_camera_matrix @ np.concatenate([p, [1]])
+            intersection = find_plane_line_intersection(laser_plane, [0, 0, 0], p_cam)
+            p_w = camera2plate_mtx @ np.concatenate([intersection, [1]])
+            """ with open(output_path, "a") as f:
+                f.write(f"{p_w[0]:.4f} {p_w[1]:.4f} {p_w[2]:.4f}\n") """
+
+            if debug:
+                p_img = (intersection[:2] / intersection[2]) * focal_length
+                p_img = tuple(np.round(p_img).astype(np.int32))
+                cv2.drawMarker(
+                    laser_frame,
+                    p_img,
+                    (0, 255, 0),
+                    markerSize=15,
+                    markerType=cv2.MARKER_CROSS,
+                    thickness=3,
+                )
 
         if debug:
             black_obj_frame_resized = get_resized_frame(

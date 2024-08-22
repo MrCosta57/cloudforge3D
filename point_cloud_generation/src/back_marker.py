@@ -6,6 +6,7 @@ from typing import List, Tuple
 import cv2
 import numpy as np
 from utils.scanner_utils import get_world_points_from_cm
+from utils.geometric_utils import fit_line
 
 
 def fit_marker_rectangle(

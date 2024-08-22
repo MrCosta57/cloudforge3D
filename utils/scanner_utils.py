@@ -24,26 +24,6 @@ def find_black_objects(frame: np.ndarray, threshold: int = 105) -> np.ndarray:
     return frame_gray
 
 
-def convert_to_polar(ellipse_center, point):
-    vector = np.array(
-        [
-            point[0] - ellipse_center[0],
-            point[1] - ellipse_center[1],
-        ]
-    )
-    radius = np.linalg.norm(vector)
-    # Return signed angle in radians
-    angle = math.atan2(vector[1], vector[0])
-
-    # Convert angle to degrees
-    angle_degrees = math.degrees(angle)
-    # Ensure angle is in the range [0, 360)
-    if angle_degrees < 0:
-        angle_degrees += 360
-
-    return radius, angle_degrees
-
-
 def get_point_color(frame, frame_point):
 
     # HSV color space is more suitable for object detection

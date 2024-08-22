@@ -33,3 +33,33 @@ def get_undistorted_frame(
     x, y, w, h = roi
     dst = dst[y : y + h, x : x + w]
     return dst
+
+
+def marker2camera(r, t):
+    rot_matr = cv2.Rodrigues(r)[0]
+    mtx = np.concatenate(
+        [
+            np.concatenate([rot_matr, t], axis=1),
+            np.array([[0, 0, 0, 1]]),
+        ],
+        axis=0,
+    )
+    return mtx
+
+
+def camera2marker(r, t):
+    rot_matr = cv2.Rodrigues(r)[0]
+    mtx = np.concatenate(
+        [
+            np.concatenate(
+                [
+                    np.array(cv2.transpose(rot_matr)),
+                    np.array(-cv2.transpose(rot_matr) @ t),
+                ],
+                axis=1,
+            ),
+            np.array([[0, 0, 0, 1]]),
+        ],
+        axis=0,
+    )
+    return mtx
