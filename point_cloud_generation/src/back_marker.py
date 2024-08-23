@@ -59,7 +59,6 @@ def fit_marker_rectangle(
 def compute_back_marker_extrinsic(
     rectangle: np.ndarray,
     camera_matrix: np.ndarray,
-    dist_coeffs: np.ndarray,
     real_marker_size: Tuple[float, float],
     debug=False,
     palette_frame=None,
@@ -90,7 +89,7 @@ def compute_back_marker_extrinsic(
     )
 
     _, r, t = cv2.solvePnP(
-        obj_points, img_points, camera_matrix, dist_coeffs, flags=cv2.SOLVEPNP_IPPE
+        obj_points, img_points, camera_matrix, np.empty(0), flags=cv2.SOLVEPNP_IPPE
     )
 
     if debug and palette_frame is not None:
@@ -99,7 +98,7 @@ def compute_back_marker_extrinsic(
             r,
             t,
             camera_matrix,
-            dist_coeffs,
+            np.empty(0),
             img_points,
         )[0]
         proj_vertexes = np.round(proj_vertexes).astype(np.int32)

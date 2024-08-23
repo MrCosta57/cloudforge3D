@@ -18,6 +18,7 @@ def find_laser_line_backmarker(rectangle: np.ndarray, frame: np.ndarray):
     height, width, _ = frame.shape
     rectangle_mask = np.zeros((height, width), dtype=np.uint8)
 
+    # Smooth frame with filter robust to outliers, making it useful for removing impulse noise or salt-and-pepper noise/reflections
     frame = cv2.medianBlur(frame.copy(), 3)
     # Extract red channel from the frame, not interested in the other colors
     _, laser_mask = cv2.threshold(frame[:, :, 2], 200, 255, cv2.THRESH_BINARY)

@@ -53,8 +53,8 @@ def camera2marker(r, t):
         [
             np.concatenate(
                 [
-                    np.array(cv2.transpose(rot_matr)),
-                    np.array(-cv2.transpose(rot_matr) @ t),
+                    cv2.transpose(rot_matr),
+                    -cv2.transpose(rot_matr) @ t,
                 ],
                 axis=1,
             ),
@@ -63,3 +63,13 @@ def camera2marker(r, t):
         axis=0,
     )
     return mtx
+
+
+def skip_to_time(cap: cv2.VideoCapture, target_minute=0, target_second=0):
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    # Calculate the target frame number
+    target_time_in_seconds = target_minute * 60 + target_second
+    target_frame = int(target_time_in_seconds * fps)
+    # Set the video capture to the target frame
+    cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+    return cap

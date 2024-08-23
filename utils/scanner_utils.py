@@ -11,7 +11,7 @@ def get_world_points_from_cm(size: float):
     return int(size * 10)
 
 
-def find_black_objects(frame: np.ndarray, threshold: int = 105) -> np.ndarray:
+def find_black_objects(frame: np.ndarray, threshold: int = 120) -> np.ndarray:
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # image to gray scale
     # Smooth the image
     frame_gray = cv2.GaussianBlur(frame_gray, (3, 3), 0)

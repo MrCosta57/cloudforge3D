@@ -56,13 +56,11 @@ def plane2camera(point, normal, r, t):
     rot_mat = cv2.Rodrigues(r)[0]
     t = t.reshape(1, 3)
 
-    new_point = np.array(point).reshape(1, 3)
-    new_point = new_point @ rot_mat + t
-    new_normal = np.array(normal).reshape(1, 3)
+    # TODO check if this is correct
+    new_point = np.array(point)
+    new_point = new_point + t
+    new_normal = np.array(normal)
     new_normal = new_normal @ rot_mat
-
-    new_point = new_point[0]
-    new_normal = new_normal[0]
     return new_point, new_normal
 
 

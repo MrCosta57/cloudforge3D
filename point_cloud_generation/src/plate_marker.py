@@ -13,10 +13,15 @@ from utils.scanner_utils import (
 )
 from utils.geometric_utils import convert_to_polar
 from termcolor import colored
+from tqdm import tqdm
 
 
 def find_plate_marker_cand_dot_centers(
-    contours, frame_w: int, frame_h: int, debug=False, palette_frame=None
+    contours,
+    frame_w: int,
+    frame_h: int,
+    debug=False,
+    palette_frame=None,
 ):
     """
     Find the candidate centers of the plate marker dots. There might be some noise points
@@ -43,8 +48,8 @@ def find_plate_marker_cand_dot_centers(
         if (
             10 < center_x < frame_w - 10
             and frame_h / 2 < center_y < frame_h
-            and 20 < axis_1 < 50
-            and 20 < axis_2 < 50
+            and 15 < axis_1 < 65
+            and 15 < axis_2 < 65
         ):
             # Check if the center is not too close to any other center
             predicate = any([math.dist(c, [center_x, center_y]) < 30 for c in centers])
@@ -141,11 +146,12 @@ def compute_plate_marker_extrinsic(
     ellipse,
     dot_centers,
     camera_matrix,
-    dist_coeffs,
     marker_info,
     frame,
     debug=False,
     palette_frame=None,
+    print_fn=print,
+    angle_gap_threshold=35,
 ):
     seq_string, min_pattern_len, marker_radius_cm = marker_info
     seq_len = len(seq_string)
@@ -171,13 +177,13 @@ def compute_plate_marker_extrinsic(
     dot_centers = [
         p
         for p in dot_centers
-        if abs(cv2.pointPolygonTest(poly, p, measureDist=True)) < 10
+        if abs(cv2.pointPolygonTest(poly, p, measureDist=True)) < 20
     ]
     if len(dot_centers) < 10:
         raise Exception("Too few dot centers for plate marker detection")
     if debug:
         if len(dot_centers) != seq_len:
-            print(
+            print_fn(
                 colored(
                     f"Dot centers for plate extrinsic computation are {len(dot_centers)}",
                     "light_yellow",
@@ -208,7 +214,9 @@ def compute_plate_marker_extrinsic(
             # Make the pattern invalid when:
             # - The angle difference is more than 30 degrees, probably there's a gap among the dot sequence
             # - The color is None
-            if (curr_t[1] is None) or (abs(curr_t[0] - next_t[0] + 360) % 360 > 30):
+            if (curr_t[1] is None) or (
+                abs(curr_t[0] - next_t[0] + 360) % 360 > angle_gap_threshold
+            ):
                 pattern = ""
                 break
             pattern += curr_t[1]
@@ -216,6 +224,23 @@ def compute_plate_marker_extrinsic(
 
     # Find the indexes of the dots, if the pattern is not found, the index is -1
     dot_indexes = [get_marker_seq_start(seq_string, pattern) for pattern in patterns]
+
+    # Fill the missing indexes by inferring their values from the known ones
+    # Duplicate the sequence to fill indexes in a circular manner
+    for i in range((dot_tuple_len - 1) * 2):
+        curr_t = dot_tuple[i % dot_tuple_len]
+        next_t = dot_tuple[(i + 1) % dot_tuple_len]
+        curr_idx = dot_indexes[i % dot_tuple_len]
+        next_idx = dot_indexes[(i + 1) % dot_tuple_len]
+        if (
+            curr_idx != -1
+            and next_idx == -1
+            and abs(curr_t[0] - next_t[0] + 360) % 360 <= angle_gap_threshold
+        ):
+            # print("Dot indexes before:")
+            # print(dot_indexes)
+            # print(f"Filled with {curr_idx} + 1")
+            dot_indexes[(i + 1) % dot_tuple_len] = (curr_idx + 1) % seq_len
 
     marker_angle = 360 // seq_len
     marker_radius_rw = get_world_points_from_cm(marker_radius_cm)
@@ -237,15 +262,20 @@ def compute_plate_marker_extrinsic(
         [t[2] for t, idx in zip(dot_tuple, dot_indexes) if idx != -1], dtype=np.float32
     )
     if len(obj_points) < 4 or len(img_points) < 4:
+
+        for t, idx in zip(dot_tuple, dot_indexes):
+            if idx != -1:
+                tqdm.write(f"t: {t}, idx: {idx}")
+
         raise Exception("Too few points for plate marker pose estimation")
 
     _, r, t = cv2.solvePnP(
-        obj_points, img_points, camera_matrix, dist_coeffs, flags=cv2.SOLVEPNP_IPPE
+        obj_points, img_points, camera_matrix, np.empty(0), flags=cv2.SOLVEPNP_IPPE
     )
 
     if debug and palette_frame is not None:
         proj_dot_centers = cv2.projectPoints(
-            obj_points, r, t, camera_matrix, dist_coeffs, img_points
+            obj_points, r, t, camera_matrix, np.empty(0), img_points
         )[0]
         proj_dot_centers = np.round(proj_dot_centers).astype(np.int32)
         for p in proj_dot_centers:
@@ -293,7 +323,7 @@ def compute_plate_marker_extrinsic(
             r,
             t,
             camera_matrix,
-            dist_coeffs,
+            np.empty(0),
             img_points,
         )[0]
         proj_axis_pts = np.round(proj_axis_pts).astype(np.int32)
@@ -356,4 +386,5 @@ def compute_plate_marker_extrinsic(
             markerType=cv2.MARKER_STAR,
             thickness=2,
         )
+
     return r, t
