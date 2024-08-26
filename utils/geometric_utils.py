@@ -39,6 +39,7 @@ def find_plane_equation(point1, point2, point3):
     vector1 = np.array(point2) - np.array(point1)
     vector2 = np.array(point3) - np.array(point1)
     normal_vector = np.cross(vector1, vector2)
+    normal_vector = normal_vector / np.linalg.norm(normal_vector)
 
     k = -np.sum(point1 * normal_vector)
     return np.array([normal_vector[0], normal_vector[1], normal_vector[2], k])
@@ -54,13 +55,14 @@ def find_plane_equation_from_normal(point, normal):
 
 def plane2camera(point, normal, r, t):
     rot_mat = cv2.Rodrigues(r)[0]
-    t = t.reshape(1, 3)
+    t = t.reshape(3, 1)
 
-    # TODO check if this is correct
-    new_point = np.array(point)
-    new_point = new_point + t
-    new_normal = np.array(normal)
-    new_normal = new_normal @ rot_mat
+    new_point = np.array(point).reshape(3, 1)
+    new_point = rot_mat @ new_point + t
+    new_normal = np.array(normal).reshape(3, 1)
+    new_normal = rot_mat @ new_normal
+    new_normal = new_normal.squeeze()
+    new_point = new_point.squeeze()
     return new_point, new_normal
 
 

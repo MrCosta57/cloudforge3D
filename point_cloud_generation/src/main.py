@@ -57,7 +57,7 @@ def main(args: argparse.Namespace):
         print(colored(f"Calibration error: {error:.4f}", "dark_grey"))
 
     inv_camera_matrix = np.linalg.inv(camera_matrix)
-    cap = skip_to_time(cap, 0, 33)
+    # cap = skip_to_time(cap, 0, 33)
 
     with open(output_path, "w") as file:
         for _ in tqdm(range(total_frames), desc="Processing Video", unit="frame"):
@@ -193,13 +193,17 @@ def main(args: argparse.Namespace):
                 first_point_laser, second_point_laser, third_point_laser
             )
 
+            # TODO: x coord della normale dovrebbe essere grande
+            # TODO: Usare tanti punti per fitting del piano laser
+            # TODO: punti sul piattello devono avere coordinate zero
+
             for p in all_laser_points_plate:
                 p_cam = inv_camera_matrix @ np.concatenate([p, [1]])
                 intersection = find_plane_line_intersection(
                     laser_plane, [0, 0, 0], p_cam
                 )
                 p_w = camera2plate_mtx @ np.concatenate([intersection, [1]])
-                # file.write(f"{p_w[0]:.4f} {p_w[1]:.4f} {p_w[2]:.4f}\n")
+                file.write(f"{p_w[0]:.4f} {p_w[1]:.4f} {p_w[2]:.4f}\n")
 
                 if debug:
                     p_proj = cv2.projectPoints(
@@ -235,7 +239,7 @@ def main(args: argparse.Namespace):
                     scaling_factor=window_scaling_factor,
                 )
                 cv2.imshow("Contours/shapes frame", black_obj_frame_resized)
-                # cv2.imshow("Laser frame", laser_frame_resized)
+                cv2.imshow("Laser frame", laser_frame_resized)
                 cv2.imshow("Projection frame", proj_frame_resized)
             else:
                 original_frame_resized = get_resized_frame(
@@ -246,7 +250,7 @@ def main(args: argparse.Namespace):
                 )
                 cv2.imshow("Original frame", original_frame_resized)
 
-            key = cv2.waitKey(500)
+            key = cv2.waitKey(1)
             if key == 32:  # space bar key
                 tqdm.write(colored("Paused. Press any key to continue", "yellow"))
                 cv2.waitKey(0)
