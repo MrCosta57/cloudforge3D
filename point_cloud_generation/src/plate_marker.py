@@ -1,4 +1,5 @@
 import os, sys
+from typing import List, Tuple
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.append(ROOT_DIR)
@@ -15,14 +16,17 @@ from utils.geometric_utils import convert_to_polar
 from termcolor import colored
 from tqdm import tqdm
 
+Ellipse = Tuple[Tuple[float, float], Tuple[float, float], float]
+ListCenter = List[Tuple[int, int]]
+
 
 def find_plate_marker_cand_dot_centers(
     contours,
     frame_w: int,
     frame_h: int,
-    debug=False,
+    debug: bool = False,
     palette_frame=None,
-):
+) -> ListCenter:
     """
     Find the candidate centers of the plate marker dots. There might be some noise points
     :param contours: List of contours to search for the dots
@@ -75,8 +79,12 @@ def find_plate_marker_cand_dot_centers(
 
 
 def fit_marker_ellipse(
-    points, num_round: int = 50, dist_thresh: int = 5, debug=False, palette_frame=None
-):
+    points: ListCenter,
+    num_round: int = 50,
+    dist_thresh: int = 5,
+    debug: bool = False,
+    palette_frame=None,
+) -> Ellipse:
     """
     Fit an ellipse to the given points using RANSAC.
     :param points: List of points to fit the ellipse
@@ -143,16 +151,16 @@ def fit_marker_ellipse(
 
 
 def compute_plate_marker_extrinsic(
-    ellipse,
-    dot_centers,
-    camera_matrix,
-    marker_info,
-    frame,
-    debug=False,
+    ellipse: Ellipse,
+    dot_centers: ListCenter,
+    camera_matrix: np.ndarray,
+    marker_info: Tuple[str, int, float],
+    frame: np.ndarray,
+    debug: bool = False,
     palette_frame=None,
     print_fn=print,
     angle_gap_threshold=35,
-):
+) -> Tuple[np.ndarray, np.ndarray]:
     seq_string, min_pattern_len, marker_radius_cm = marker_info
     seq_len = len(seq_string)
     # Duplicate the sequence to handle the case when the pattern is split between the last and the first element
@@ -262,11 +270,6 @@ def compute_plate_marker_extrinsic(
         [t[2] for t, idx in zip(dot_tuple, dot_indexes) if idx != -1], dtype=np.float32
     )
     if len(obj_points) < 4 or len(img_points) < 4:
-
-        for t, idx in zip(dot_tuple, dot_indexes):
-            if idx != -1:
-                tqdm.write(f"t: {t}, idx: {idx}")
-
         raise Exception("Too few points for plate marker pose estimation")
 
     _, r, t = cv2.solvePnP(

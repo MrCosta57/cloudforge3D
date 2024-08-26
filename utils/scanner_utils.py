@@ -7,7 +7,7 @@ def get_marker_seq_start(seq_string: str, pattern: str) -> int:
     return seq_string.find(pattern) if pattern != "" else -1
 
 
-def get_world_points_from_cm(size: float):
+def get_world_points_from_cm(size: float) -> int:
     return int(size * 10)
 
 
@@ -24,7 +24,7 @@ def find_black_objects(frame: np.ndarray, threshold: int = 120) -> np.ndarray:
     return frame_gray
 
 
-def get_point_color(frame, frame_point):
+def get_point_color(frame, frame_point) -> str | None:
 
     # HSV color space is more suitable for object detection
     frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)

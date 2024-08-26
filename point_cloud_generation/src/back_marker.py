@@ -10,8 +10,8 @@ from utils.geometric_utils import fit_line
 
 
 def fit_marker_rectangle(
-    contours, min_area: int = 100000, debug=False, palette_frame=None
-):
+    contours, min_area: int = 100000, debug: bool = False, palette_frame=None
+) -> np.ndarray:
     """
     Fit a rectangle to the given contours.
     :param contours: List of contours to search for the rectangle
@@ -62,7 +62,7 @@ def compute_back_marker_extrinsic(
     real_marker_size: Tuple[float, float],
     debug=False,
     palette_frame=None,
-):
+) -> Tuple[np.ndarray, np.ndarray]:
     a, b, c, d = rectangle
     # (width, height)
     marker_size = (
