@@ -146,13 +146,15 @@ def main(args: argparse.Namespace):
                     markerType=cv2.MARKER_CROSS,
                     thickness=2,
                 )
-            cv2.polylines(
-                laser_frame,
-                [all_laser_points_plate],
-                isClosed=False,
-                color=(0, 255, 255),
-                thickness=1,
-            )
+            for p in all_laser_points_plate:
+                cv2.drawMarker(
+                    laser_frame,
+                    tuple(p),
+                    (0, 255, 255),
+                    markerSize=2,
+                    markerType=cv2.MARKER_STAR,
+                    thickness=1,
+                )
 
         """
         When we work with different cameras with different intrinsics it is handy to have 
@@ -226,11 +228,10 @@ def main(args: argparse.Namespace):
                         proj_frame,
                         tuple(p_proj),
                         (226, 43, 138),
-                        markerSize=5,
+                        markerSize=2,
                         markerType=cv2.MARKER_STAR,
                         thickness=1,
                     )
-
         if debug:
             black_obj_frame_resized = get_resized_frame(
                 black_obj_frame,

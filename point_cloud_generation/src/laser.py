@@ -101,21 +101,26 @@ def find_all_laser_points_obj(ellipse: Ellipse, frame: np.ndarray) -> np.ndarray
     # Red can have two distinct hue ranges in the HSV space (0-10 and 160-180)
     # Thresholds here are fixed to take into account some color variations
     mask1 = cv2.inRange(frame_hsv, np.array((0, 70, 225)), np.array((20, 255, 255)))
-    mask2 = cv2.inRange(frame_hsv, np.array((155, 70, 230)), np.array((180, 255, 255)))
+    mask2 = cv2.inRange(frame_hsv, np.array((150, 70, 230)), np.array((180, 255, 255)))
     laser_mask = cv2.bitwise_or(mask1, mask2)
 
     center_x, center_y = round(ellipse[0][0]), round(ellipse[0][1])
     half_axis_1, half_axis_2 = round(ellipse[1][0] / 2), round(ellipse[1][1] / 2)
     angle = round(ellipse[2])
     poly = cv2.ellipse2Poly(
-        (center_x, center_y), (half_axis_1, half_axis_2), angle, 0, 360, delta=5
+        (center_x, center_y),
+        (half_axis_1, half_axis_2),
+        angle,
+        0,
+        360,
+        delta=5,
     )
     poly = np.asarray(poly)
     cv2.fillPoly(ellipse_mask, [poly], (255, 255, 255))
     points_inside_mask = cv2.bitwise_and(laser_mask, ellipse_mask)
-    points_inside_mask = cv2.morphologyEx(
-        points_inside_mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)
-    )
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    points_inside_mask = cv2.morphologyEx(points_inside_mask, cv2.MORPH_CLOSE, kernel)
+    # Extract points from mask (in format (x, y))
     filtered_idx = np.where(points_inside_mask > 0)[::-1]
     points_inside_ellipse = np.column_stack(filtered_idx)
     points_inside_ellipse = np.round(points_inside_ellipse).astype(np.int32)
