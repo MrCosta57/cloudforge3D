@@ -1,5 +1,12 @@
 # CloudForge3D
 
+## Description
+This repository contains the implementation of a simple 3D laser scanner using off-the-shelf components. The scanner consists of a motorized turntable with a custom-designed fiducial marker and a planar marker placed behind it. The system projects a laser line on the target object, capturing the scene with a camera multiple times during rotation.<br/>
+The output is a 3D point cloud representing the object's geometry.
+
+The repository also includes code for camera calibration using a video file with a calibration chessboard marker.
+
+
 ## Installation
 ```bash
 # [OPTIONAL] create conda environment
@@ -75,7 +82,6 @@ If debug mode is enabled, the program will display different windows:
     <li><b>Projection frame</b>: shows the data related to point projections, for checking the correctness of markers' coordinate systems and their extrinsic parameter identification</li>
     <li><b>Laser frame</b>: contains all the points detected by the procedure for fitting the laser plane</li>
 </ol>
-<br/>
 
 <details>
 <summary><span style="font-weight: bold;">Command Line Arguments for generate.py</span></summary>
