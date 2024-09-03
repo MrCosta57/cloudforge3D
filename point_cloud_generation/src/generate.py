@@ -56,21 +56,27 @@ def main(args: argparse.Namespace):
         print(colored(f"Calibration error: {error:.4f}", "dark_grey"))
 
     inv_camera_matrix = np.linalg.inv(camera_matrix)
-    # cap = skip_to_time(cap, 0, 33)
 
-    for i in tqdm(range(total_frames), desc="Processing Video", unit="frame"):
+    for _ in tqdm(range(total_frames), desc="Processing Video", unit="frame"):
         ret, original_frame = cap.read()
         if not ret:
             break
+
+        # Get the undistorted frame
+        # It will be used for all the processing and it will be not modified
         original_frame = get_undistorted_frame(
             frame=original_frame,
             camera_matrix=camera_matrix,
             dist_coeffs=dist_coeffs,
         )
+
         proj_frame = original_frame.copy()
         laser_frame = original_frame.copy()
         black_obj_frame = find_black_objects(frame=original_frame)
 
+        # Compute the initial contours to allow the fitting of some shapes using the edges of the black objects
+        # Note that both markers and dots inside plate marker have black contours
+        # Find contours of the black objects
         black_contours, _ = cv2.findContours(
             black_obj_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
         )
@@ -78,9 +84,11 @@ def main(args: argparse.Namespace):
             black_obj_frame = cv2.cvtColor(black_obj_frame, cv2.COLOR_GRAY2BGR)
             cv2.drawContours(black_obj_frame, black_contours, -1, (0, 0, 255), 2)
 
+        # Find inner rectangle of the back marker in image coordinate system
         rectangle = fit_marker_rectangle(
             contours=black_contours, debug=debug, palette_frame=black_obj_frame
         )
+        # Find the centers of the dots on the plate marker in image coordinate system
         dot_centers = find_plate_marker_cand_dot_centers(
             contours=black_contours,
             frame_w=frame_width,
@@ -88,10 +96,13 @@ def main(args: argparse.Namespace):
             debug=debug,
             palette_frame=black_obj_frame,
         )
+        # Find the ellipse of the plate marker in image coordinate system based on the dot centers
         ellipse = fit_marker_ellipse(
             points=dot_centers, debug=debug, palette_frame=black_obj_frame
         )
 
+        # Once all the information of markers are found, extrinsic parameters can be computed
+        # Find the extrinsic parameters of the back marker
         r_back, t_back = compute_back_marker_extrinsic(
             rectangle=rectangle,
             camera_matrix=camera_matrix,
@@ -99,7 +110,7 @@ def main(args: argparse.Namespace):
             debug=debug,
             palette_frame=proj_frame,
         )
-
+        # Find the extrinsic parameters of the plate marker
         r_plate, t_plate = compute_plate_marker_extrinsic(
             ellipse=ellipse,
             dot_centers=dot_centers,
@@ -110,9 +121,12 @@ def main(args: argparse.Namespace):
             palette_frame=proj_frame,
             print_fn=tqdm.write,
         )
-        # Camera reference system --> plate marker reference system
+
+        # Matrix to convert from camera reference system to plate marker reference system
         camera2plate_mtx = camera2marker(r_plate, t_plate)
 
+        # Find some laser points on the back marker and plate marker
+        # This is needed to fit the laser plane
         points_back = find_n_laser_point_backmarker(
             rectangle=rectangle,
             frame=original_frame,
@@ -123,10 +137,13 @@ def main(args: argparse.Namespace):
             frame=original_frame,
             n_points=20,
         )
+        # Find all the laser points on the plate marker
+        # Points will be used to generate the point cloud of the object
         all_laser_points_plate = find_all_laser_points_obj(
             ellipse=ellipse,
             frame=original_frame,
         )
+
         if debug:
             for p in points_back:
                 cv2.drawMarker(
@@ -156,14 +173,10 @@ def main(args: argparse.Namespace):
                     thickness=1,
                 )
 
-        """
-        When we work with different cameras with different intrinsics it is handy to have 
-        a representation which is independent of those intrinsics.
-        We have used K to get from the camera frame into the image frame. 
-        Then we have removed the depth by removing λ. As a result we got the 2D coordinated u and v. 
-        Now we go back to the camera frame by inverting the intrinsic dependent transformation K with K^(-1). 
-        As a result we are in the camera frame but with normalized depth Z_C=1. """
-
+        # All the laser points found before are in image coordinate system (2D)
+        # 1) Add a dimension to the points to make them 3D
+        # 2) Use K^(-1) to map them from image frame to camera frame
+        # 3) As a result the 3D z coordinate have normalized depth (z=1)
         # [1, 3, 3] @ [n, 3, 1]
         points_back_cam = np.expand_dims(inv_camera_matrix, axis=0) @ np.expand_dims(
             np.column_stack([points_back, np.ones(len(points_back))]), axis=2
@@ -172,14 +185,20 @@ def main(args: argparse.Namespace):
             np.column_stack([points_plate, np.ones(len(points_plate))]), axis=2
         )
 
+        # It's possible to define a plane in the markers reference system arbitrarily, as they are coplanar
+        # The simplest plane is the one defined by the normal vector [0, 0, 1] and the point [0, 0, 0]
+        # The plane can be converted to the camera reference system using the extrinsic parameters
         # [4, ]
-        plane_back_cam = plane2camera(
+        plane_back_cam = plane_marker2plane_camera(
             np.array([0, 0, 0]), np.array([0, 0, 1]), r_back, t_back
         )
-        plane_plate_cam = plane2camera(
+        plane_plate_cam = plane_marker2plane_camera(
             np.array([0, 0, 0]), np.array([0, 0, 1]), r_plate, t_plate
         )
 
+        # Use the lines passing trough the camera center and the laser points that
+        # intersect the plane in camera reference system.
+        # The intersection points are the 3D laser points on the respective plane in camera reference system
         # [n, 3, 1]
         points_back_laser = find_plane_line_intersection(
             plane_back_cam, np.array([0, 0, 0]).reshape(1, 3, 1), points_back_cam
@@ -190,10 +209,14 @@ def main(args: argparse.Namespace):
             plane_plate_cam, np.array([0, 0, 0]).reshape(1, 3, 1), points_plate_cam
         )
         points_plate_laser = points_plate_laser.squeeze(axis=-1)
+
+        # Fit the laser plane in camera reference system using the points on the markers' planes
         laser_plane = fit_plane(
             np.concatenate([points_back_laser, points_plate_laser], axis=0)
         )
 
+        # Map also the laser points on the plate marker (object's points)
+        # from image to camera reference system
         # [1, 3, 3] @ [n, 3, 1]
         pl_cam = np.expand_dims(inv_camera_matrix, axis=0) @ np.expand_dims(
             np.column_stack(
@@ -201,11 +224,16 @@ def main(args: argparse.Namespace):
             ),
             axis=2,
         )
+        # Find the intersection between the laser plane and the lines passing through
+        # the camera center and the laser points
         # [n, 3, 1]
         pl_intersection = find_plane_line_intersection(
             laser_plane, np.array([0, 0, 0]).reshape(1, 3, 1), pl_cam
         )
         pl_intersection = pl_intersection.squeeze(axis=-1)
+
+        # Convert the intersection points from camera reference system to plate marker reference system
+        # to allow the correct point cloud generation
         # [1, 4, 4] @ [n, 4, 1]
         pl_w = np.expand_dims(camera2plate_mtx, axis=0) @ np.expand_dims(
             np.column_stack([pl_intersection, np.ones(len(pl_intersection))]),
@@ -216,6 +244,7 @@ def main(args: argparse.Namespace):
         pl_w = pl_w[:, :3]
 
         with open(output_path, "a") as file:
+            # Write all the object points to the output file
             for p in pl_w:
                 file.write(f"{p[0]:.4f} {p[1]:.4f} {p[2]:.4f}\n")
 
@@ -251,9 +280,9 @@ def main(args: argparse.Namespace):
                 height=frame_height,
                 scaling_factor=window_scaling_factor,
             )
-            cv2.imshow("Contours/shapes frame", black_obj_frame_resized)
-            cv2.imshow("Laser frame", laser_frame_resized)
+            cv2.imshow("Shapes frame", black_obj_frame_resized)
             cv2.imshow("Projection frame", proj_frame_resized)
+            cv2.imshow("Laser frame", laser_frame_resized)
         else:
             original_frame_resized = get_resized_frame(
                 original_frame,

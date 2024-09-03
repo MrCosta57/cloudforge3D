@@ -8,19 +8,24 @@ from utils.geometric_utils import (
     find_line_line_intersection,
     random_points_on_line_segment,
 )
-from utils.general_utils import get_resized_frame
-from utils.scanner_utils import get_world_points_from_cm
 from plate_marker import Ellipse
 import cv2
+from cv2.typing import MatLike
 import numpy as np
 
 
-def find_laser_line_backmarker(rectangle: np.ndarray, frame: np.ndarray):
-
+def find_laser_line_backmarker(rectangle: np.ndarray, frame: MatLike):
+    """
+    Calculate the line equation from the laser points inside the marker rectangle.
+    :param rectangle: Rectangle to search for the laser points
+    :param frame: Frame to search for the laser points
+    :return: Line parameters (a, b, c) of the laser line
+    """
     height, width, _ = frame.shape
     rectangle_mask = np.zeros((height, width), dtype=np.uint8)
 
-    # Smooth frame with filter robust to outliers, making it useful for removing impulse noise or salt-and-pepper noise/reflections
+    # Smooth frame with filter robust to outliers, making it useful for
+    # removing impulse noise or salt-and-pepper noise/reflections
     frame = cv2.medianBlur(frame.copy(), 3)
     # Extract red channel from the frame, not interested in the other colors
     _, laser_mask = cv2.threshold(frame[:, :, 2], 200, 255, cv2.THRESH_BINARY)
@@ -31,6 +36,7 @@ def find_laser_line_backmarker(rectangle: np.ndarray, frame: np.ndarray):
     points_inside_mask = cv2.bitwise_and(laser_mask, rectangle_mask)
     # Extract points (non-zero coordinates) from the resulting mask
 
+    # Extract points from mask (in format (x, y))
     filtered_idx = np.where(points_inside_mask > 0)[::-1]
     points_inside_rectangle = np.column_stack(filtered_idx)
     line_a, line_b, line_c = fit_line(points_inside_rectangle)
@@ -39,8 +45,16 @@ def find_laser_line_backmarker(rectangle: np.ndarray, frame: np.ndarray):
 
 
 def find_n_laser_point_backmarker(
-    rectangle: np.ndarray, frame: np.ndarray, n_points: int = 10
+    rectangle: np.ndarray, frame: MatLike, n_points: int = 10
 ) -> np.ndarray:
+    """
+    Find `n_points` on the laser line inside the marker rectangle.
+    :param rectangle: Rectangle to search for the laser points
+    :param frame: Frame to search for the laser points
+    :param n_points: Number of points to find on the laser line
+    :return: Points on the laser line
+    """
+    # rectangle shape [4, 1, 2]
     v1, v2, v3, v4 = rectangle[:, 0, :]
     line_a, line_b, line_c = find_laser_line_backmarker(rectangle, frame)
     upper_line = find_line_equation(v1[0], v1[1], v2[0], v2[1])
@@ -54,18 +68,26 @@ def find_n_laser_point_backmarker(
 
 
 def find_n_laser_point_platemarker(
-    ellipse: Ellipse, frame: np.ndarray, n_points: int = 10
+    ellipse: Ellipse, frame: MatLike, n_points: int = 10
 ):
+    """
+    Find `n_points` on the laser line inside the marker ellipse (and before the object).
+    :param ellipse: Ellipse to search for the laser points
+    :param frame: Frame to search for the laser points
+    :param n_points: Number of points to find on the laser line
+    :return: Points on the laser line
+    """
     center_x, center_y = round(ellipse[0][0]), round(ellipse[0][1])
     # Crop the frame around the ellipse center to reduce the search area
-    # Finding point don't require high precision
+    # Finding points don't require high precision
     cropped_frame = frame[
         center_y + 100 : center_y + 200, center_x - 150 : center_x + 150, :
     ]
 
     # HSV color space is more suitable for object detection
     cropped_frame = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2HSV)
-    # Smooth frame with filter robust to outliers, making it useful for removing impulse noise or salt-and-pepper noise/reflections
+    # Smooth frame with filter robust to outliers,
+    # making it useful for removing impulse noise or salt-and-pepper noise/reflections
     cropped_frame = cv2.medianBlur(cropped_frame, 3)
 
     # Red can have two distinct hue ranges in the HSV space (0-10 and 160-180)
@@ -79,7 +101,7 @@ def find_n_laser_point_platemarker(
     # Pick the non-zero values in the mask
     points = cv2.findNonZero(laser_mask)
     if points is None:
-        raise Exception("Point not detected")
+        raise Exception("Points not detected")
 
     sampled_idx = np.random.choice(points.shape[0], n_points, replace=False)
     laser_points = points[sampled_idx, 0, :]
@@ -90,7 +112,13 @@ def find_n_laser_point_platemarker(
     return laser_points
 
 
-def find_all_laser_points_obj(ellipse: Ellipse, frame: np.ndarray) -> np.ndarray:
+def find_all_laser_points_obj(ellipse: Ellipse, frame: MatLike) -> np.ndarray:
+    """
+    Find all laser points inside the marker ellipse (also the points on the object)
+    :param ellipse: Ellipse to search for the laser points
+    :param frame: Frame to search for the laser points
+    :return: Points on the laser line
+    """
     height, width, _ = frame.shape
     ellipse_mask = np.zeros((height, width), dtype=np.uint8)
     # HSV color space is more suitable for object detection
@@ -107,6 +135,7 @@ def find_all_laser_points_obj(ellipse: Ellipse, frame: np.ndarray) -> np.ndarray
     center_x, center_y = round(ellipse[0][0]), round(ellipse[0][1])
     half_axis_1, half_axis_2 = round(ellipse[1][0] / 2), round(ellipse[1][1] / 2)
     angle = round(ellipse[2])
+    # Convert ellipse to polygon
     poly = cv2.ellipse2Poly(
         (center_x, center_y),
         (half_axis_1, half_axis_2),
@@ -116,10 +145,15 @@ def find_all_laser_points_obj(ellipse: Ellipse, frame: np.ndarray) -> np.ndarray
         delta=5,
     )
     poly = np.asarray(poly)
+    # Fill the polygon (ellipse) on the mask
     cv2.fillPoly(ellipse_mask, [poly], (255, 255, 255))
     points_inside_mask = cv2.bitwise_and(laser_mask, ellipse_mask)
+
+    # Perform morphological closing to remove small holes in the mask
+    # and reduce the thickness of the laser line
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     points_inside_mask = cv2.morphologyEx(points_inside_mask, cv2.MORPH_CLOSE, kernel)
+
     # Extract points from mask (in format (x, y))
     filtered_idx = np.where(points_inside_mask > 0)[::-1]
     points_inside_ellipse = np.column_stack(filtered_idx)

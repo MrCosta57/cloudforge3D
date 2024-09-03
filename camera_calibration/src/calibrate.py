@@ -1,5 +1,7 @@
 import os, sys
 
+from tqdm import tqdm
+
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.append(ROOT_DIR)
 import argparse
@@ -37,16 +39,23 @@ def main(args: argparse.Namespace):
     if not cap.isOpened():
         print(colored("Error opening video file.", "red"))
         return
+
+    # Get frame width and height
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    frame_skip_interval = time_skips / 1000 * fps
+    frames_to_process = int(total_frames // frame_skip_interval)
     assert height > width, "Video frame is not in portrait mode"
 
-    print(colored("Start analyzing video file...", "green"))
     skip_count = 0
-    while True:
+    for _ in tqdm(range(frames_to_process), desc="Processing Video", unit="frame"):
         ret, frame = cap.read()
         if not ret:
             break
+
+        # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         # Find the chessboard corners
         ret, corners = cv2.findChessboardCorners(gray, chessboard_size, None)
@@ -61,6 +70,7 @@ def main(args: argparse.Namespace):
                 # Draw and display the corners for debugging purposes
                 cv2.drawChessboardCorners(frame, chessboard_size, corners2, ret)
 
+        # Display the frame
         resized_frame = get_resized_frame(
             frame,
             width=width,
@@ -68,8 +78,8 @@ def main(args: argparse.Namespace):
             scaling_factor=window_scaling_factor,
         )
         cv2.imshow("Frame", resized_frame)
-        if cv2.waitKey(100) & 0xFF == ord("q"):
-            print(colored("User interrupted the process", "red"))
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            tqdm.write(colored("User interrupted the process", "red"))
             cap.release()
             cv2.destroyAllWindows()
             return
@@ -117,9 +127,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--debug",
-        type=bool,
         default=True,
-        help="Debug mode",
+        action=argparse.BooleanOptionalAction,
+        help="Debug mode (display additional information)",
     )
     parser.add_argument(
         "--chessboard_size",

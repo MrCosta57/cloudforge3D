@@ -12,9 +12,9 @@ from utils.scanner_utils import (
     get_marker_seq_start,
     get_world_points_from_cm,
 )
+from cv2.typing import MatLike
 from utils.geometric_utils import convert_to_polar
 from termcolor import colored
-from tqdm import tqdm
 
 Ellipse = Tuple[Tuple[float, float], Tuple[float, float], float]
 ListCenter = List[Tuple[int, int]]
@@ -59,6 +59,7 @@ def find_plate_marker_cand_dot_centers(
             predicate = any([math.dist(c, [center_x, center_y]) < 30 for c in centers])
             if not predicate:
                 centers.append((center_x, center_y))
+
                 if debug and palette_frame is not None:
                     cv2.ellipse(
                         palette_frame,
@@ -132,6 +133,7 @@ def fit_marker_ellipse(
 
     # Extract the candidate with max votes
     best_ellipse = max(candidates, key=lambda item: item[1])[0]
+
     if debug and palette_frame is not None:
         cv2.ellipse(
             palette_frame,
@@ -155,15 +157,29 @@ def compute_plate_marker_extrinsic(
     dot_centers: ListCenter,
     camera_matrix: np.ndarray,
     marker_info: Tuple[str, int, float],
-    frame: np.ndarray,
+    frame: MatLike,
     debug: bool = False,
-    palette_frame=None,
+    palette_frame: MatLike | None = None,
     print_fn=print,
     angle_gap_threshold=35,
 ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Compute the extrinsic parameters of the plate marker using the ellipse and the dot centers
+    :param ellipse: Ellipse of the plate marker
+    :param dot_centers: List of dot centers
+    :param camera_matrix: Camera matrix (intrinsic parameters)
+    :param marker_info: Tuple containing the sequence string, the minimum pattern length and the marker radius
+    :param frame: Frame to search for the dot colors
+    :param debug: Debug flag
+    :param palette_frame: Frame to draw the debug information on
+    :param print_fn: Print function
+    :param angle_gap_threshold: Angle gap threshold for the pattern identification in the marker sequences
+    :return: Rotation and translation vectors
+    """
     seq_string, min_pattern_len, marker_radius_cm = marker_info
     seq_len = len(seq_string)
-    # Duplicate the sequence to handle the case when the pattern is split between the last and the first element
+    # Duplicate the sequence to handle the case when
+    # the pattern is split between the last and the first element
     seq_string = seq_string * 2
 
     ellipse_center = (round(ellipse[0][0]), round(ellipse[0][1]))
@@ -189,6 +205,7 @@ def compute_plate_marker_extrinsic(
     ]
     if len(dot_centers) < 10:
         raise Exception("Too few dot centers for plate marker detection")
+
     if debug:
         if len(dot_centers) != seq_len:
             print_fn(
@@ -215,13 +232,14 @@ def compute_plate_marker_extrinsic(
     patterns = []
     for i in range(dot_tuple_len):
         pattern = ""
-        # Build the pattern for identifing the circle id by taking the color of the dot in the next min_pattern_len positions
+        # Build the pattern for identifying the circle id by taking the color of the dot
+        # in the next `min_pattern_len` positions
         for j in range(min_pattern_len):
             curr_t = dot_tuple[(i + j) % dot_tuple_len]
             next_t = dot_tuple[(i + j + 1) % dot_tuple_len]
             # Make the pattern invalid when:
             # - The angle difference is more than 30 degrees, probably there's a gap among the dot sequence
-            # - The color is None
+            # - The color is not found (None)
             if (curr_t[1] is None) or (
                 abs(curr_t[0] - next_t[0] + 360) % 360 > angle_gap_threshold
             ):
@@ -234,26 +252,29 @@ def compute_plate_marker_extrinsic(
     dot_indexes = [get_marker_seq_start(seq_string, pattern) for pattern in patterns]
 
     # Fill the missing indexes by inferring their values from the known ones
-    # Duplicate the sequence to fill indexes in a circular manner
+    # Duplicate the length of the dot list to fill indexes in a circular manner
     for i in range((dot_tuple_len - 1) * 2):
         curr_t = dot_tuple[i % dot_tuple_len]
         next_t = dot_tuple[(i + 1) % dot_tuple_len]
         curr_idx = dot_indexes[i % dot_tuple_len]
         next_idx = dot_indexes[(i + 1) % dot_tuple_len]
+
+        # Infer the index of the next dot if:
+        # - The current dot has a known index
+        # - The next dot has an unknown index
+        # - The angle difference between the current and the next dot is less than a threshold
         if (
             curr_idx != -1
             and next_idx == -1
             and abs(curr_t[0] - next_t[0] + 360) % 360 <= angle_gap_threshold
         ):
-            # print("Dot indexes before:")
-            # print(dot_indexes)
-            # print(f"Filled with {curr_idx} + 1")
             dot_indexes[(i + 1) % dot_tuple_len] = (curr_idx + 1) % seq_len
 
     marker_angle = 360 // seq_len
     marker_radius_rw = get_world_points_from_cm(marker_radius_cm)
+
     # Filter out the dots with invalid indexes (solvePnP requires at least 4 points)
-    # Take just dots with sure id
+    # and build the object and image points
     obj_points = np.array(
         [
             [
@@ -272,6 +293,7 @@ def compute_plate_marker_extrinsic(
     if len(obj_points) < 4 or len(img_points) < 4:
         raise Exception("Too few points for plate marker pose estimation")
 
+    # Solve the 3D-2D point correspondences
     _, r, t = cv2.solvePnP(
         obj_points, img_points, camera_matrix, np.empty(0), flags=cv2.SOLVEPNP_IPPE
     )

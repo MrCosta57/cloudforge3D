@@ -2,21 +2,26 @@ import os, sys
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.append(ROOT_DIR)
-from typing import List, Tuple
+from typing import Tuple
 import cv2
 import numpy as np
 from utils.scanner_utils import get_world_points_from_cm
-from utils.geometric_utils import fit_line
+from cv2.typing import MatLike
 
 
 def fit_marker_rectangle(
-    contours, min_area: int = 100000, debug: bool = False, palette_frame=None
+    contours,
+    min_area: int = 100000,
+    debug: bool = False,
+    palette_frame: MatLike | None = None,
 ) -> np.ndarray:
     """
     Fit a rectangle to the given contours.
     :param contours: List of contours to search for the rectangle
     :param min_area: Minimum area for the rectangle
-    :return: Inner rectangle found from the marker contours
+    :param debug: Debug flag
+    :param palette_frame: Frame to draw the rectangle on
+    :return: Inner rectangle of marker
     """
     rectangles = []
     for contour in contours:
@@ -25,14 +30,16 @@ def fit_marker_rectangle(
         epsilon = 0.01 * cv2.arcLength(contour, closed=True)
         poly = cv2.approxPolyDP(contour, epsilon, closed=True)
         area = cv2.contourArea(poly)
-        # If polygon has 4 vertices and area not too small, it's the rectangle marker
+        # If polygon has 4 vertices and area not too small, it's a candidate rectangle
         if len(poly) == 4 and area > min_area:
             rectangles.append(poly)
 
     if len(rectangles) == 0:
         raise Exception("No rectangles found")
 
+    # Sort the rectangles by area
     rectangles.sort(key=cv2.contourArea)
+    # Take the smallest rectangle
     inner_rectangle = rectangles[0]
 
     if debug and palette_frame is not None:
@@ -60,15 +67,26 @@ def compute_back_marker_extrinsic(
     rectangle: np.ndarray,
     camera_matrix: np.ndarray,
     real_marker_size: Tuple[float, float],
-    debug=False,
-    palette_frame=None,
+    debug: bool = False,
+    palette_frame: MatLike | None = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Compute the extrinsic parameters of the back rectangle marker.
+    :param rectangle: Inner rectangle of the marker
+    :param camera_matrix: Camera matrix (intrinsic parameters)
+    :param real_marker_size: Real size of the marker in cm
+    :param debug: Debug flag
+    :param palette_frame: Frame to draw the marker on
+    :return: Rotation and translation vectors of the marker
+    """
     a, b, c, d = rectangle
-    # (width, height)
+    # (width, height) in cm
     marker_size = (
         get_world_points_from_cm(real_marker_size[0]),
         get_world_points_from_cm(real_marker_size[1]),
     )
+
+    # Define the points in the rectangle coordinate system
     obj_points = np.array(
         [
             [0, 0, 0],
@@ -78,6 +96,7 @@ def compute_back_marker_extrinsic(
         ],
         dtype=np.float32,
     )
+    # Define the points in the image coordinate system
     img_points = np.array(
         [
             a[0],
@@ -88,6 +107,7 @@ def compute_back_marker_extrinsic(
         dtype=np.float32,
     )
 
+    # Solve the 3D-2D point correspondences
     _, r, t = cv2.solvePnP(
         obj_points, img_points, camera_matrix, np.empty(0), flags=cv2.SOLVEPNP_IPPE
     )
