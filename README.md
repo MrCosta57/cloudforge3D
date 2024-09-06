@@ -65,6 +65,10 @@ project-folder/
   Name of the output file
 </details>
 
+<p>
+It's possible to interrupt the video processing by pressing the <b>Q</b> key
+</p>
+
 
 ## Point cloud generation
 1. Put the video file for point cloud generation in the folder `point_cloud_generation/data` directory. The video should contain the back marker and the plate marker for a correct program execution
@@ -73,15 +77,6 @@ project-folder/
     python point_cloud_generation/src/generate.py
     ```
 1. The point cloud will be saved in the `point_cloud_generation/output` directory
-<br/>
-
-<p>
-If debug mode is enabled, the program will display different windows:
-<ol>
-    <li><b>Shapes frame</b>: provide more information on the object contours and the geometric shapes fitted during the video processing</li>
-    <li><b>Projection frame</b>: shows the data related to point projections, for checking the correctness of markers' coordinate systems and their extrinsic parameter identification</li>
-    <li><b>Laser frame</b>: contains all the points detected by the procedure for fitting the laser plane</li>
-</ol>
 
 <details>
 <summary><span style="font-weight: bold;">Command Line Arguments for generate.py</span></summary>
@@ -105,3 +100,17 @@ If debug mode is enabled, the program will display different windows:
   #### --back_marker_size
   Size of the back marker (width_cm, height_cm)
 </details>
+
+<p>
+If debug mode is enabled, the program will display different windows:
+<ol>
+    <li><b>Shapes frame</b>: provide more information on the object contours and the geometric shapes fitted during the video processing</li>
+    <li><b>Projection frame</b>: shows the data related to points' projections, for checking the correctness of markers' coordinate systems and their extrinsic parameter identification</li>
+    <li><b>Laser frame</b>: contains all the points detected by the procedure for fitting the laser plane</li>
+</ol>
+</p>
+
+<p>
+It's possible to interrupt the video processing by pressing the <b>Q</b> key.
+If <b>SPACE</b> is pressed, the program will pause the video processing.
+</p>

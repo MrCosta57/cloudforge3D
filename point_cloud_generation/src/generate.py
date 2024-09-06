@@ -32,6 +32,7 @@ def main(args: argparse.Namespace):
     )
 
     cap = cv2.VideoCapture(video_path)
+
     # Sanity checks
     if not cap.isOpened():
         print(colored("Error opening video file.", "red"))
@@ -96,7 +97,7 @@ def main(args: argparse.Namespace):
             debug=debug,
             palette_frame=black_obj_frame,
         )
-        # Find the ellipse of the plate marker in image coordinate system based on the dot centers
+        # Find the ellipse of the plate marker in image coordinate system based on the dots' centers
         ellipse = fit_marker_ellipse(
             points=dot_centers, debug=debug, palette_frame=black_obj_frame
         )
@@ -125,7 +126,7 @@ def main(args: argparse.Namespace):
         # Matrix to convert from camera reference system to plate marker reference system
         camera2plate_mtx = camera2marker(r_plate, t_plate)
 
-        # Find some laser points on the back marker and plate marker
+        # Find some random laser points on the back marker and on the plate marker
         # This is needed to fit the laser plane
         points_back = find_n_laser_point_backmarker(
             rectangle=rectangle,
@@ -187,7 +188,7 @@ def main(args: argparse.Namespace):
 
         # It's possible to define a plane in the markers reference system arbitrarily, as they are coplanar
         # The simplest plane is the one defined by the normal vector [0, 0, 1] and the point [0, 0, 0]
-        # The plane can be converted to the camera reference system using the extrinsic parameters
+        # The plane can be converted to the camera reference system using the extrinsic parameters of the marker
         # [4, ]
         plane_back_cam = plane_marker2plane_camera(
             np.array([0, 0, 0]), np.array([0, 0, 1]), r_back, t_back
@@ -205,6 +206,7 @@ def main(args: argparse.Namespace):
         )
         points_back_laser = points_back_laser.squeeze(axis=-1)
 
+        # [n, 3, 1]
         points_plate_laser = find_plane_line_intersection(
             plane_plate_cam, np.array([0, 0, 0]).reshape(1, 3, 1), points_plate_cam
         )
@@ -261,6 +263,7 @@ def main(args: argparse.Namespace):
                         markerType=cv2.MARKER_STAR,
                         thickness=1,
                     )
+
         if debug:
             black_obj_frame_resized = get_resized_frame(
                 black_obj_frame,
