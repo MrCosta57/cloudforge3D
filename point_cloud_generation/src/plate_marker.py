@@ -238,7 +238,7 @@ def compute_plate_marker_extrinsic(
             curr_t = dot_tuple[(i + j) % dot_tuple_len]
             next_t = dot_tuple[(i + j + 1) % dot_tuple_len]
             # Make the pattern invalid when:
-            # - The angle difference is more than 30 degrees, probably there's a gap among the dot sequence
+            # - The angle difference is more than `angle_gap_threshold` degrees, probably there's a gap among the dot sequence
             # - The color is not found (None)
             if (curr_t[1] is None) or (
                 abs(curr_t[0] - next_t[0] + 360) % 360 > angle_gap_threshold
