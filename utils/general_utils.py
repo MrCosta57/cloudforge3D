@@ -8,6 +8,7 @@ from cv2.typing import MatLike
 def seed_everything(seed: int = 123):
     """
     Seed everything for reproducibility
+
     :param seed: Seed value
     """
     random.seed(seed)
@@ -28,6 +29,7 @@ def get_undistorted_frame(
 ):
     """
     Undistort the frame using the camera matrix and distortion coefficients
+
     :param frame: Frame to undistort
     :param camera_matrix: Camera matrix
     :param dist_coeffs: Distortion coefficients
@@ -48,6 +50,7 @@ def get_undistorted_frame(
 def marker2camera(r, t):
     """
     Convert marker pose to camera pose
+
     :param r: Rotation vector
     :param t: Translation vector
     :return: Camera pose matrix
@@ -66,6 +69,7 @@ def marker2camera(r, t):
 def camera2marker(r, t):
     """
     Convert camera pose to marker pose
+
     :param r: Rotation vector
     :param t: Translation vector
     :return: Marker pose matrix
@@ -92,6 +96,7 @@ def plane_marker2plane_camera(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Convert a point and normal vector from the plane coordinate system to the camera coordinate system
+
     :param point: Point in the plane coordinate system
     :param normal: Normal vector in the plane coordinate system
     :param r: Rotation vector of the marker
@@ -113,6 +118,7 @@ def plane_marker2plane_camera(
 def skip_to_time(cap: cv2.VideoCapture, target_minute=0, target_second=0):
     """
     Skip to the target time in the video capture
+
     :param cap: Video capture
     :param target_minute: Target minute
     :param target_second: Target second

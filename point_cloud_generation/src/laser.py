@@ -17,6 +17,7 @@ import numpy as np
 def find_laser_line_backmarker(rectangle: np.ndarray, frame: MatLike):
     """
     Calculate the line equation from the laser points inside the marker rectangle.
+
     :param rectangle: Rectangle to search for the laser points
     :param frame: Frame to search for the laser points
     :return: Line parameters (a, b, c) of the laser line
@@ -49,6 +50,7 @@ def find_n_laser_point_backmarker(
 ) -> np.ndarray:
     """
     Find `n_points` on the laser line inside the marker rectangle.
+
     :param rectangle: Rectangle to search for the laser points
     :param frame: Frame to search for the laser points
     :param n_points: Number of points to find on the laser line
@@ -72,6 +74,7 @@ def find_n_laser_point_platemarker(
 ):
     """
     Find `n_points` on the laser line inside the marker ellipse (and before the object).
+
     :param ellipse: Ellipse to search for the laser points
     :param frame: Frame to search for the laser points
     :param n_points: Number of points to find on the laser line
@@ -115,6 +118,7 @@ def find_n_laser_point_platemarker(
 def find_all_laser_points_obj(ellipse: Ellipse, frame: MatLike) -> np.ndarray:
     """
     Find all laser points inside the marker ellipse (also the points on the object)
+
     :param ellipse: Ellipse to search for the laser points
     :param frame: Frame to search for the laser points
     :return: Points on the laser line

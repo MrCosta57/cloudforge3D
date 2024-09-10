@@ -7,6 +7,7 @@ from typing import Tuple
 def get_marker_seq_start(seq_string: str, pattern: str) -> int:
     """
     Find the start index of the pattern in the sequence string.
+
     If the pattern is empty or not found, return -1.
     :param seq_string: Sequence string to search for the pattern
     :param pattern: Pattern to search for in the sequence string
@@ -18,6 +19,7 @@ def get_marker_seq_start(seq_string: str, pattern: str) -> int:
 def get_world_points_from_cm(size: float) -> int:
     """
     Convert centimeters to world points.
+
     :param size: Size in centimeters
     :return: Size in world points
     """
@@ -27,6 +29,7 @@ def get_world_points_from_cm(size: float) -> int:
 def find_black_objects(frame: MatLike, threshold: int = 120) -> np.ndarray:
     """
     Find black objects in the frame by thresholding.
+
     :param frame: Frame to find black objects in
     :param threshold: Threshold value for the frame
     :return: Frame with black objects (white) and the rest (black)
@@ -46,6 +49,7 @@ def find_black_objects(frame: MatLike, threshold: int = 120) -> np.ndarray:
 def get_point_color(frame: MatLike, frame_point: Tuple[float, float]) -> str | None:
     """
     Get the color of the point in the frame.
+
     :param frame: Frame to get the color from
     :param frame_point: Point in the frame to get the color from
     :return: Color of the point in the frame

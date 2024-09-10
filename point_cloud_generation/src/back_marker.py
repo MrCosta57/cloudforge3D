@@ -17,6 +17,7 @@ def fit_marker_rectangle(
 ) -> np.ndarray:
     """
     Fit a rectangle to the given contours.
+
     :param contours: List of contours to search for the rectangle
     :param min_area: Minimum area for the rectangle
     :param debug: Debug flag
@@ -72,6 +73,7 @@ def compute_back_marker_extrinsic(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute the extrinsic parameters of the back rectangle marker.
+
     :param rectangle: Inner rectangle of the marker
     :param camera_matrix: Camera matrix (intrinsic parameters)
     :param real_marker_size: Real size of the marker in cm

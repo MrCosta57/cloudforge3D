@@ -7,6 +7,7 @@ from typing import Tuple
 def fit_line(points: np.ndarray) -> Tuple[float, float, float]:
     """
     Fit a line to a set of points using the least squares method
+
     :param points: Points to fit the line to
     :return: Line parameters (a, b, c)
     """
@@ -27,6 +28,7 @@ def find_line_equation(
 ) -> Tuple[float, float, float]:
     """
     Find the equation of the line passing through two points
+
     :param x1: x-coordinate of the first point
     :param y1: y-coordinate of the first point
     :param x2: x-coordinate of the second point
@@ -50,6 +52,7 @@ def random_points_on_line_segment(
 ) -> np.ndarray:
     """
     Generate random points on a line segment
+
     :param start: Start point of the line segment
     :param end: End point of the line segment
     :param n: Number of points to generate
@@ -65,6 +68,7 @@ def random_points_on_line_segment(
 def find_plane_equation(point1, point2, point3):
     """
     Find the equation of the point passing through three points
+
     :param point1: First point
     :param point2: Second point
     :param point3: Third point
@@ -82,6 +86,7 @@ def find_plane_equation(point1, point2, point3):
 def fit_plane(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Fit a plane to a set of points using the SVD method
+
     :param points: Points to fit the plane to
     :return: Centroid and normal of the fitted plane
     """
@@ -99,6 +104,7 @@ def fit_plane(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 def find_plane_equation_from_normal(point: np.ndarray, normal: np.ndarray):
     """
     Find the equation of the plane passing through a point with a given normal
+
     :param point: Point on the plane
     :param normal: Normal vector of the plane
     :return: Plane parameters (a, b, c, d)
@@ -112,6 +118,7 @@ def find_line_line_intersection(
 ) -> Tuple[float, float]:
     """
     Find intersection between two lines
+
     :param line1: Line parameters (a1, b1, c1)
     :param line2: Line parameters (a2, b2, c2)
     :return: Intersection point (x, y)
@@ -132,6 +139,7 @@ def find_plane_line_intersection(
 ) -> np.ndarray:
     """
     Find intersection between a plane and the line passing through two points
+
     :param plane: Plane parameters (normal, point)
     :param point1: First point on the line
     :param point2: Second point on the line
@@ -163,6 +171,7 @@ def find_plane_line_intersection(
 def convert_to_polar(ellipse_center: Tuple[int, int], point: Tuple[float, float]):
     """
     Convert a point from Cartesian to polar coordinates
+
     :param ellipse_center: Center of the ellipse
     :param point: Point in Cartesian coordinates
     :return: Polar coordinates (radius, angle)

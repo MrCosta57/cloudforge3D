@@ -244,6 +244,8 @@ def main(args: argparse.Namespace):
         pl_w = pl_w.squeeze(axis=-1)
         # Extract 3d points from the homogeneous coordinates
         pl_w = pl_w[:, :3]
+        pl_w_mask = pl_w[:, 2] >= 0.5
+        pl_w = pl_w[pl_w_mask]
 
         with open(output_path, "a") as file:
             # Write all the object points to the output file

@@ -29,6 +29,7 @@ def find_plate_marker_cand_dot_centers(
 ) -> ListCenter:
     """
     Find the candidate centers of the plate marker dots. There might be some noise points
+
     :param contours: List of contours to search for the dots
     :param frame_w: Frame width
     :param frame_h: Frame height
@@ -88,6 +89,7 @@ def fit_marker_ellipse(
 ) -> Ellipse:
     """
     Fit an ellipse to the given points using RANSAC.
+
     :param points: List of points to fit the ellipse
     :param num_round: Number of RANSAC rounds
     :param dist_thresh: Distance threshold for inliers
@@ -165,6 +167,7 @@ def compute_plate_marker_extrinsic(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute the extrinsic parameters of the plate marker using the ellipse and the dot centers
+
     :param ellipse: Ellipse of the plate marker
     :param dot_centers: List of dot centers
     :param camera_matrix: Camera matrix (intrinsic parameters)
