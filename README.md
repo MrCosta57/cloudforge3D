@@ -1,11 +1,24 @@
 # CloudForge3D
 
+<!--
+<div style="text-align: center;">
+  <img src="assets/cloudforge.jpeg" alt="ball" style="width:50%;"/>
+</div>
+-->
+
 ## Description
 This repository contains the implementation of a simple 3D laser scanner using off-the-shelf components. The scanner consists of a motorized turntable with a custom-designed fiducial marker and a planar marker placed behind it. The system projects a laser line on the target object, capturing the scene with a camera multiple times during rotation.<br/>
 The output is a 3D point cloud representing the object's geometry.
 
 The repository also includes code for camera calibration using a video file with a calibration chessboard marker.
 
+## Results
+
+<div style="text-align: center;">
+  <img src="assets/ball_result.png" alt="ball" style="width:33%;"/>
+  <img src="assets/cube_result.png" alt="cube" style="width:33%;"/>
+  <img src="assets/cat_result.png" alt="cat" style="width:33%;"/>
+</div>
 
 ## Installation
 ```bash
