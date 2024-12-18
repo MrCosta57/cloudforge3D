@@ -14,10 +14,10 @@ The repository also includes code for camera calibration using a video file with
 
 ## Results
 
-<div style="text-align: center;">
-  <img src="assets/ball_result.png" alt="ball" style="width:33%;"/>
-  <img src="assets/cube_result.png" alt="cube" style="width:33%;"/>
-  <img src="assets/cat_result.png" alt="cat" style="width:33%;"/>
+<div align="center">
+  <img src="assets/ball_result.png" alt="ball" style="width:45%;"/>
+  <img src="assets/cat_result.png" alt="cat" style="width:45%;"/>
+  <img src="assets/cube_result.png" alt="cube" style="width:45%;"/>
 </div>
 
 ## Installation
